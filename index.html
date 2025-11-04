@@ -2,10 +2,10 @@
 <html lang="pl">
 <head>
 <meta charset="utf-8" />
-<title>JPG → WebP (Multi)</title>
+<title>JPG → WebP (Multi + Responsive)</title>
 <style>
   body { font-family: system-ui, Segoe UI, Roboto, Arial; margin: 2rem; }
-  #drop { border: 2px dashed #888; padding: 2rem; text-align: center; margin-bottom: 1rem; }
+  #drop, #drop-resp { border: 2px dashed #888; padding: 2rem; text-align: center; margin-bottom: 1rem; }
   .preview-item { display: inline-block; margin: 1rem; text-align: center; }
   .preview-item img { max-width: 150px; display: block; margin-bottom: .5rem; }
 </style>
@@ -24,7 +24,26 @@
 </div>
 <div id="preview"></div>
 
+<hr style="margin: 3rem 0;">
+
+<h1>Generator zdjęć responsywnych (1 → 3 rozmiary)</h1>
+<p>Zrzucasz zdjęcie → pobierasz trzy wersje: 480w, 768w, 1024w.</p>
+<div id="drop-resp">
+  Wrzuć zdjęcie lub <input id="file-resp" type="file" accept="image/*">
+</div>
+<div>
+  <label>
+    Jakość (0-100):
+    <input id="quality-resp" type="number" min="1" max="100" value="80">
+  </label>
+  <button id="convert-resp">Konwertuj na 3 rozmiary</button>
+</div>
+<div id="preview-resp"></div>
+
 <script>
+// ===============================
+// Sekcja 1 — MULTI JPG → WEBP
+// ===============================
 const drop = document.getElementById('drop');
 const fileInput = document.getElementById('file');
 const preview = document.getElementById('preview');
@@ -87,6 +106,85 @@ document.getElementById('convert').addEventListener('click', async () => {
   }
 
   alert('Konwersja zakończona.');
+});
+
+
+// ===============================================
+// Sekcja 2 — RESPONSIVE (WIELE zdjęć → 3 rozmiary każde)
+// ===============================================
+const dropResp = document.getElementById('drop-resp');
+const fileRespInput = document.getElementById('file-resp');
+const previewResp = document.getElementById('preview-resp');
+let respFiles = [];
+
+['dragenter','dragover','dragleave','drop'].forEach(evt => {
+  dropResp.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+});
+
+dropResp.addEventListener('drop', e => {
+  handleRespFiles(e.dataTransfer.files);
+});
+
+fileRespInput.addEventListener('change', e => {
+  handleRespFiles(e.target.files);
+});
+
+function handleRespFiles(fileList) {
+  respFiles = [...fileList];
+  previewResp.innerHTML = '';
+  respFiles.forEach(file => {
+    const img = document.createElement('img');
+    img.src = URL.createObjectURL(file);
+    img.style.maxWidth = '200px';
+    const wrap = document.createElement('div');
+    wrap.className = 'preview-item';
+    wrap.appendChild(img);
+
+    const label = document.createElement('div');
+    label.textContent = file.name;
+    wrap.appendChild(label);
+
+    previewResp.appendChild(wrap);
+  });
+}
+
+async function resizeToWidth(bitmap, targetWidth) {
+  const scale = targetWidth / bitmap.width;
+  const canvas = document.createElement('canvas');
+  canvas.width = targetWidth;
+  canvas.height = Math.round(bitmap.height * scale);
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  return canvas;
+}
+
+document.getElementById('convert-resp').addEventListener('click', async () => {
+  if (!respFiles.length) return alert('Wybierz co najmniej jedno zdjęcie.');
+  const quality = Math.min(100, Math.max(1, parseInt(document.getElementById('quality-resp').value || 80)));
+
+  const sizes = [480, 768, 1024];
+
+  for (const file of respFiles) {
+    const bitmap = await createImageBitmap(file);
+    const base = file.name.replace(/\.[^.]+$/, '');
+
+    for (const w of sizes) {
+      const canvas = await resizeToWidth(bitmap, w);
+
+      await new Promise(resolve => {
+        canvas.toBlob(blob => {
+          const a = document.createElement('a');
+          a.download = `${base}-${w}w.webp`;
+          a.href = URL.createObjectURL(blob);
+          a.click();
+          URL.revokeObjectURL(a.href);
+          resolve();
+        }, 'image/webp', quality / 100);
+      });
+    }
+  }
+
+  alert('Wygenerowano zestawy 480w, 768w, 1024w dla wszystkich zdjęć.');
 });
 </script>
 </body>

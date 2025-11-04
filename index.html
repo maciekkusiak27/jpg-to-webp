@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8" />
+<title>JPG → WebP (Multi)</title>
+<style>
+  body { font-family: system-ui, Segoe UI, Roboto, Arial; margin: 2rem; }
+  #drop { border: 2px dashed #888; padding: 2rem; text-align: center; margin-bottom: 1rem; }
+  .preview-item { display: inline-block; margin: 1rem; text-align: center; }
+  .preview-item img { max-width: 150px; display: block; margin-bottom: .5rem; }
+</style>
+</head>
+<body>
+<h1>Konwerter JPG → WebP (wiele plików)</h1>
+<div id="drop">
+  Wrzuć pliki JPG/PNG tutaj lub <input id="file" type="file" accept="image/*" multiple>
+</div>
+<div>
+  <label>
+    Jakość (0-100):
+    <input id="quality" type="number" min="1" max="100" value="80">
+  </label>
+  <button id="convert">Konwertuj wszystkie i pobierz</button>
+</div>
+<div id="preview"></div>
+
+<script>
+const drop = document.getElementById('drop');
+const fileInput = document.getElementById('file');
+const preview = document.getElementById('preview');
+let files = [];
+
+['dragenter','dragover','dragleave','drop'].forEach(evt => {
+  drop.addEventListener(evt, e => { e.preventDefault(); e.stopPropagation(); });
+});
+
+drop.addEventListener('drop', e => {
+  handleFiles(e.dataTransfer.files);
+});
+
+fileInput.addEventListener('change', e => {
+  handleFiles(e.target.files);
+});
+
+function handleFiles(selected) {
+  files = [...selected];
+  preview.innerHTML = '';
+  files.forEach(file => {
+    const readerURL = URL.createObjectURL(file);
+    const container = document.createElement('div');
+    container.className = 'preview-item';
+
+    const img = document.createElement('img');
+    img.src = readerURL;
+    container.appendChild(img);
+
+    const label = document.createElement('div');
+    label.textContent = file.name;
+    container.appendChild(label);
+
+    preview.appendChild(container);
+  });
+}
+
+document.getElementById('convert').addEventListener('click', async () => {
+  if (!files.length) return alert('Najpierw wybierz pliki.');
+  const quality = Math.min(100, Math.max(1, parseInt(document.getElementById('quality').value || 80)));
+
+  for (const file of files) {
+    const bitmap = await createImageBitmap(file);
+    const canvas = document.createElement('canvas');
+    canvas.width = bitmap.width;
+    canvas.height = bitmap.height;
+    const ctx = canvas.getContext('2d');
+    ctx.drawImage(bitmap, 0, 0);
+
+    await new Promise(resolve => {
+      canvas.toBlob(blob => {
+        const a = document.createElement('a');
+        a.download = file.name.replace(/\.[^.]+$/, '') + '.webp';
+        a.href = URL.createObjectURL(blob);
+        a.click();
+        URL.revokeObjectURL(a.href);
+        resolve();
+      }, 'image/webp', quality / 100);
+    });
+  }
+
+  alert('Konwersja zakończona.');
+});
+</script>
+</body>
+</html>
